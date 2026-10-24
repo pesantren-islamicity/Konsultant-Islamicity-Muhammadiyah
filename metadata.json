@@ -1,0 +1,8 @@
+{
+  "name": "Islamicity Muhammadiyah Superapp",
+  "description": "Platform infrastruktur superaplikasi konsultan Islamicity Muhammadiyah kaffah dengan integrasi dakwah digital, zakat, SIMA, analitik cabang nasional, dan sistem keamanan cloud terenkripsi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
