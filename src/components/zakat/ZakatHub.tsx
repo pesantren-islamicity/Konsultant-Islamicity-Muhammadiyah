@@ -14,7 +14,12 @@ import {
   TrendingUp,
   ShieldCheck,
   Building,
-  HeartHandshake
+  HeartHandshake,
+  Sparkles,
+  AlertCircle,
+  Scale,
+  CheckCircle2,
+  SlidersHorizontal
 } from 'lucide-react';
 import { ZakatTransaction, Language } from '../../types';
 import { translations } from '../../services/i18n';
@@ -37,16 +42,18 @@ export const ZakatHub: React.FC<ZakatHubProps> = ({
 }) => {
   const t = translations[language];
 
-  // Calculator State
-  const [calcType, setCalcType] = useState<'maal' | 'profesi' | 'fitrah' | 'perniagaan'>('profesi');
+  // Calculator State - Supports Unified 'kombinasi' (Penghasilan & Emas), profesi, maal, fitrah, perniagaan
+  const [calcType, setCalcType] = useState<'kombinasi' | 'profesi' | 'maal' | 'fitrah' | 'perniagaan'>('kombinasi');
   
-  // Maal inputs
+  // Emas & Maal inputs
   const [savingsWealth, setSavingsWealth] = useState<number>(150000000);
-  const [goldWeightGrams, setGoldWeightGrams] = useState<number>(0);
+  const [goldWeightGrams, setGoldWeightGrams] = useState<number>(90);
+  const [goldHasHaul, setGoldHasHaul] = useState<boolean>(true);
   
-  // Profesi inputs
-  const [monthlyIncome, setMonthlyIncome] = useState<number>(15000000);
-  const [monthlyExpense, setMonthlyExpense] = useState<number>(6000000);
+  // Profesi / Penghasilan inputs
+  const [monthlyIncome, setMonthlyIncome] = useState<number>(16000000);
+  const [monthlyBonus, setMonthlyBonus] = useState<number>(2000000);
+  const [monthlyExpense, setMonthlyExpense] = useState<number>(5000000);
   
   // Fitrah inputs
   const [fitrahSouls, setFitrahSouls] = useState<number>(4);
@@ -56,30 +63,50 @@ export const ZakatHub: React.FC<ZakatHubProps> = ({
   const [businessAssets, setBusinessAssets] = useState<number>(300000000);
   const [businessDebts, setBusinessDebts] = useState<number>(80000000);
 
-  // Constants
-  const goldPricePerGram = 1450000;
+  // Constants (Berdasarkan Fatwa Majelis Tarjih PP Muhammadiyah & Standar BWI)
+  const goldPricePerGram = 1450000; // Rp 1.450.000 / gram (Antam/Benchmark)
   const nisabGold85g = 85 * goldPricePerGram; // Rp 123.250.000
-  const nisabMonthlyIncome = nisabGold85g / 12; // ~Rp 10.270.833
+  const nisabMonthlyIncome = nisabGold85g / 12; // ~Rp 10.270.833 / bulan
 
-  // Calculation logic
+  // Detailed calculations
+  const totalGrossIncome = monthlyIncome + monthlyBonus;
+  const netMonthlyIncome = Math.max(0, totalGrossIncome - monthlyExpense);
+  const isProfesiObligated = netMonthlyIncome >= nisabMonthlyIncome;
+  const zakatProfesiAmount = isProfesiObligated ? Math.round(netMonthlyIncome * 0.025) : 0;
+  const profesiProgressPct = Math.min(100, Math.round((netMonthlyIncome / nisabMonthlyIncome) * 100));
+
+  const goldTotalValue = goldWeightGrams * goldPricePerGram;
+  const isGoldObligated = goldWeightGrams >= 85 && goldHasHaul;
+  const zakatGoldAmount = isGoldObligated ? Math.round(goldTotalValue * 0.025) : 0;
+  const goldProgressPct = Math.min(100, Math.round((goldWeightGrams / 85) * 100));
+
+  // Dynamic selection calculation
   let isObligated = false;
   let calculatedZakat = 0;
+  let zakatModalTitle = 'Zakat Profesi & Emas';
 
-  if (calcType === 'maal') {
-    const totalMaal = savingsWealth + goldWeightGrams * goldPricePerGram;
-    isObligated = totalMaal >= nisabGold85g;
-    calculatedZakat = isObligated ? Math.round(totalMaal * 0.025) : 0;
+  if (calcType === 'kombinasi') {
+    isObligated = isProfesiObligated || isGoldObligated;
+    calculatedZakat = zakatProfesiAmount + zakatGoldAmount;
+    zakatModalTitle = isProfesiObligated && isGoldObligated ? 'Zakat Profesi & Emas' : isProfesiObligated ? 'Zakat Profesi' : 'Zakat Emas (Maal)';
   } else if (calcType === 'profesi') {
-    const netIncome = Math.max(0, monthlyIncome - monthlyExpense);
-    isObligated = netIncome >= nisabMonthlyIncome;
-    calculatedZakat = isObligated ? Math.round(netIncome * 0.025) : 0;
+    isObligated = isProfesiObligated;
+    calculatedZakat = zakatProfesiAmount;
+    zakatModalTitle = 'Zakat Profesi';
+  } else if (calcType === 'maal') {
+    const totalMaal = savingsWealth + goldTotalValue;
+    isObligated = totalMaal >= nisabGold85g && goldHasHaul;
+    calculatedZakat = isObligated ? Math.round(totalMaal * 0.025) : 0;
+    zakatModalTitle = 'Zakat Maal (Tabungan & Emas)';
   } else if (calcType === 'fitrah') {
     isObligated = true;
     calculatedZakat = fitrahSouls * fitrahPricePerSoul;
+    zakatModalTitle = 'Zakat Fitrah';
   } else if (calcType === 'perniagaan') {
     const netBusiness = Math.max(0, businessAssets - businessDebts);
     isObligated = netBusiness >= nisabGold85g;
     calculatedZakat = isObligated ? Math.round(netBusiness * 0.025) : 0;
+    zakatModalTitle = 'Zakat Perniagaan';
   }
 
   // Transactions table filters
@@ -165,144 +192,421 @@ export const ZakatHub: React.FC<ZakatHubProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* Left: Interactive Zakat Calculator (7 Cols) */}
-        <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-6 shadow-xs">
-          <div className="flex items-center justify-between">
+        <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-6 shadow-xs">
+          
+          {/* Header & Live Gold Benchmark */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
             <div className="flex items-center gap-2">
-              <Calculator className="w-4 h-4 text-emerald-600" />
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                {t.zakat.calculator}
-              </h3>
+              <span className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex items-center justify-center">
+                <Calculator className="w-4 h-4" />
+              </span>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  {t.zakat.calculator}
+                </h3>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Perhitungan Otomatis Nisab Majelis Tarjih PP Muhammadiyah
+                </span>
+              </div>
             </div>
-            <span className="text-[11px] text-slate-400 font-mono">
-              Acuan Emas: Rp {goldPricePerGram.toLocaleString('id-ID')}/gr
-            </span>
+            <div className="flex items-center gap-2 self-start sm:self-auto bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 px-2.5 py-1 rounded-lg">
+              <Scale className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              <div className="text-[11px] font-mono">
+                <span className="text-slate-500 dark:text-slate-400">Emas Antam: </span>
+                <span className="font-bold text-amber-700 dark:text-amber-300">
+                  Rp {goldPricePerGram.toLocaleString('id-ID')}/gr
+                </span>
+              </div>
+            </div>
           </div>
 
-          {/* Calculator Category Tabs */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+          {/* Calculator Mode Selection Tabs */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+            <button
+              onClick={() => setCalcType('kombinasi')}
+              className={`py-2 px-2 text-xs font-semibold rounded-lg transition-all flex flex-col items-center justify-center gap-0.5 ${
+                calcType === 'kombinasi'
+                  ? 'bg-emerald-700 text-white shadow-xs font-bold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <div className="flex items-center gap-1">
+                <span>Penghasilan & Emas</span>
+              </div>
+              <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-mono ${
+                calcType === 'kombinasi' ? 'bg-amber-400 text-slate-950 font-black' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+              }`}>
+                Interaktif
+              </span>
+            </button>
+
             <button
               onClick={() => setCalcType('profesi')}
-              className={`py-1.5 px-2 text-xs font-medium rounded-md transition-colors ${
+              className={`py-2 px-2 text-xs font-medium rounded-lg transition-all ${
                 calcType === 'profesi'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-semibold'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-bold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               Profesi / Gaji
             </button>
+
             <button
               onClick={() => setCalcType('maal')}
-              className={`py-1.5 px-2 text-xs font-medium rounded-md transition-colors ${
+              className={`py-2 px-2 text-xs font-medium rounded-lg transition-all ${
                 calcType === 'maal'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-semibold'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-bold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              Zakat Maal
+              Zakat Maal & Emas
             </button>
+
             <button
               onClick={() => setCalcType('fitrah')}
-              className={`py-1.5 px-2 text-xs font-medium rounded-md transition-colors ${
+              className={`py-2 px-2 text-xs font-medium rounded-lg transition-all ${
                 calcType === 'fitrah'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-semibold'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-bold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               Zakat Fitrah
             </button>
+
             <button
               onClick={() => setCalcType('perniagaan')}
-              className={`py-1.5 px-2 text-xs font-medium rounded-md transition-colors ${
+              className={`py-2 px-2 text-xs font-medium rounded-lg transition-all ${
                 calcType === 'perniagaan'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-semibold'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-bold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               Perniagaan
             </button>
           </div>
 
-          {/* Dynamic Inputs based on calcType */}
-          <div className="space-y-4">
-            {calcType === 'profesi' && (
-              <>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Pendapatan Kotor Bulanan (Gaji, Tunjangan, Honorarium)
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">Rp</span>
+          {/* Quick Simulation Presets (Active in Kombinasi Mode) */}
+          {calcType === 'kombinasi' && (
+            <div className="space-y-1.5 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-200/70 dark:border-slate-800">
+              <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                <span className="font-semibold flex items-center gap-1">
+                  <SlidersHorizontal className="w-3 h-3 text-emerald-600" />
+                  Preset Cepat Simulasi:
+                </span>
+                <span className="text-[10px] font-mono">1-Klik Input</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { label: 'Eksekutif: Gaji 25jt + Emas 95g', inc: 25000000, bon: 5000000, exp: 8000000, gold: 95, haul: true },
+                  { label: 'Karyawan: Gaji 16jt + Emas 30g', inc: 16000000, bon: 1000000, exp: 5000000, gold: 30, haul: true },
+                  { label: 'Tabungan Emas: Gaji 8jt + Emas 120g', inc: 8000000, bon: 0, exp: 3500000, gold: 120, haul: true },
+                  { label: 'Di Bawah Nisab: Gaji 7jt + Emas 15g', inc: 7000000, bon: 0, exp: 3000000, gold: 15, haul: true },
+                ].map((preset, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      setMonthlyIncome(preset.inc);
+                      setMonthlyBonus(preset.bon);
+                      setMonthlyExpense(preset.exp);
+                      setGoldWeightGrams(preset.gold);
+                      setGoldHasHaul(preset.haul);
+                    }}
+                    className="text-[11px] px-2.5 py-1 rounded-md bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:border-emerald-500 dark:hover:border-emerald-400 text-slate-700 dark:text-slate-200 transition-colors shadow-2xs"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* DYNAMIC CALCULATOR SECTIONS */}
+          <div className="space-y-6">
+            
+            {/* ---------------- SECTION A: PENGHASILAN BULANAN (Kombinasi or Profesi) ---------------- */}
+            {(calcType === 'kombinasi' || calcType === 'profesi') && (
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-md bg-emerald-700 text-white flex items-center justify-center text-xs font-bold">1</span>
+                    <h4 className="font-bold text-sm text-slate-900 dark:text-white">
+                      Penghasilan Bulanan & Zakat Profesi
+                    </h4>
+                  </div>
+                  <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 font-semibold bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 rounded">
+                    Kadar Wajib: 2.5%
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Monthly Base Income */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Gaji Pokok & Tunjangan Bulanan
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">Rp</span>
+                      <input
+                        type="number"
+                        step="500000"
+                        value={monthlyIncome}
+                        onChange={e => setMonthlyIncome(Math.max(0, Number(e.target.value)))}
+                        className="w-full pl-9 pr-3 py-2 text-sm font-mono font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 dark:text-white"
+                      />
+                    </div>
                     <input
-                      type="number"
+                      type="range"
+                      min="0"
+                      max="40000000"
                       step="500000"
                       value={monthlyIncome}
                       onChange={e => setMonthlyIncome(Number(e.target.value))}
-                      className="w-full pl-10 pr-3 py-2 text-sm font-mono font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 dark:text-white"
+                      className="w-full mt-2 accent-emerald-600 cursor-pointer"
+                    />
+                  </div>
+
+                  {/* Monthly Expenses */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Pengeluaran Kebutuhan Pokok (Pangan, Cicilan Rumah, dll)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">Rp</span>
+                      <input
+                        type="number"
+                        step="500000"
+                        value={monthlyExpense}
+                        onChange={e => setMonthlyExpense(Math.max(0, Number(e.target.value)))}
+                        className="w-full pl-9 pr-3 py-2 text-sm font-mono font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 dark:text-white"
+                      />
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="20000000"
+                      step="500000"
+                      value={monthlyExpense}
+                      onChange={e => setMonthlyExpense(Number(e.target.value))}
+                      className="w-full mt-2 accent-emerald-600 cursor-pointer"
                     />
                   </div>
                 </div>
 
+                {/* Optional Bonus input */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Pengeluaran Kebutuhan Pokok Bulanan (Pangan, Tempat Tinggal, Utang Jatuh Tempo)
+                    Bonus, Tunjangan Kinerja, atau Pendapatan Tambahan Lainnya (Bulan Ini)
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">Rp</span>
                     <input
                       type="number"
                       step="500000"
-                      value={monthlyExpense}
-                      onChange={e => setMonthlyExpense(Number(e.target.value))}
-                      className="w-full pl-10 pr-3 py-2 text-sm font-mono font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 dark:text-white"
+                      value={monthlyBonus}
+                      onChange={e => setMonthlyBonus(Math.max(0, Number(e.target.value)))}
+                      className="w-full pl-9 pr-3 py-1.5 text-xs font-mono font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 dark:text-white"
                     />
                   </div>
                 </div>
 
-                <div className="text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
-                  Nisab Profesi Bulanan: <strong>Rp {Math.round(nisabMonthlyIncome).toLocaleString('id-ID')}</strong> (Setara 85 gr emas / 12 bulan). Sesuai Putusan Tarjih Muhammadiyah.
+                {/* Income Nisab Indicator Card */}
+                <div className="p-3 bg-white dark:bg-slate-800/90 rounded-xl border border-slate-200 dark:border-slate-700/60 space-y-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1">
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400">Penghasilan Bersih Bulanan: </span>
+                      <span className="font-bold font-mono text-slate-900 dark:text-white">
+                        Rp {netMonthlyIncome.toLocaleString('id-ID')}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400">Nisab Bulanan: </span>
+                      <span className="font-mono font-bold text-slate-700 dark:text-slate-300">
+                        Rp {Math.round(nisabMonthlyIncome).toLocaleString('id-ID')}
+                      </span>
+                      <span className="text-[10px] text-slate-400 ml-1">(85g Emas / 12)</span>
+                    </div>
+                  </div>
+
+                  {/* Progress Bar towards Income Nisab */}
+                  <div className="space-y-1">
+                    <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 rounded-full ${
+                          isProfesiObligated ? 'bg-emerald-600' : 'bg-amber-500'
+                        }`}
+                        style={{ width: `${profesiProgressPct}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="font-mono text-slate-500">{profesiProgressPct}% dari Ambang Batas Nisab</span>
+                      {isProfesiObligated ? (
+                        <span className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Telah Memenuhi Nisab (Wajib Zakat Rp {zakatProfesiAmount.toLocaleString('id-ID')}/bln)</span>
+                        </span>
+                      ) : (
+                        <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          <span>Kurang Rp {Math.round(Math.max(0, nisabMonthlyIncome - netMonthlyIncome)).toLocaleString('id-ID')} untuk mencapai nisab</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </>
+              </div>
             )}
 
-            {calcType === 'maal' && (
-              <>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Saldo Tabungan, Deposito, & Aset Finansial Tersimpan (Telah Mencapai 1 Tahun / Haul)
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">Rp</span>
+            {/* ---------------- SECTION B: ASET EMAS & LOGAM MULIA (Kombinasi or Maal) ---------------- */}
+            {(calcType === 'kombinasi' || calcType === 'maal') && (
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-md bg-amber-600 text-white flex items-center justify-center text-xs font-bold">
+                      {calcType === 'kombinasi' ? '2' : '1'}
+                    </span>
+                    <h4 className="font-bold text-sm text-slate-900 dark:text-white">
+                      Aset Simpanan Emas & Logam Mulia
+                    </h4>
+                  </div>
+                  <span className="text-[10px] font-mono text-amber-700 dark:text-amber-400 font-semibold bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 rounded">
+                    Nisab: 85 Gram Emas
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Gold Weight Grams */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Jumlah Emas Murni Tersimpan (Gram)
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={goldWeightGrams}
+                        onChange={e => setGoldWeightGrams(Math.max(0, Number(e.target.value)))}
+                        className="w-full pr-14 pl-3 py-2 text-sm font-mono font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 dark:text-white"
+                        placeholder="Contoh: 90 gram"
+                      />
+                      <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">gram</span>
+                    </div>
                     <input
-                      type="number"
-                      step="1000000"
-                      value={savingsWealth}
-                      onChange={e => setSavingsWealth(Number(e.target.value))}
-                      className="w-full pl-10 pr-3 py-2 text-sm font-mono font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 dark:text-white"
+                      type="range"
+                      min="0"
+                      max="200"
+                      step="1"
+                      value={goldWeightGrams}
+                      onChange={e => setGoldWeightGrams(Number(e.target.value))}
+                      className="w-full mt-2 accent-amber-600 cursor-pointer"
                     />
+                  </div>
+
+                  {/* Live Rupiah Equivalent */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Konversi Nilai Pasar Real-Time (Antam Rp {goldPricePerGram.toLocaleString('id-ID')}/gr)
+                    </label>
+                    <div className="p-2.5 rounded-lg bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/60">
+                      <div className="text-sm font-bold font-mono text-amber-900 dark:text-amber-200">
+                        Rp {goldTotalValue.toLocaleString('id-ID')}
+                      </div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        {goldWeightGrams} gram × Rp {goldPricePerGram.toLocaleString('id-ID')}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Simpanan Logam Mulia / Emas Murni (Gram)
-                  </label>
-                  <input
-                    type="number"
-                    value={goldWeightGrams}
-                    onChange={e => setGoldWeightGrams(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-sm font-mono font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 dark:text-white"
-                    placeholder="Contoh: 100 gram"
-                  />
+                {/* Additional Tabungan / Savings if in Maal Tab */}
+                {calcType === 'maal' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Saldo Tabungan & Deposito Tersimpan Lainnya (Rp)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">Rp</span>
+                      <input
+                        type="number"
+                        step="1000000"
+                        value={savingsWealth}
+                        onChange={e => setSavingsWealth(Math.max(0, Number(e.target.value)))}
+                        className="w-full pl-9 pr-3 py-2 text-sm font-mono font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Haul Checkbox Toggle */}
+                <div className="flex items-center justify-between p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="haulCheck"
+                      checked={goldHasHaul}
+                      onChange={e => setGoldHasHaul(e.target.checked)}
+                      className="w-4 h-4 rounded text-emerald-600 accent-emerald-600 cursor-pointer"
+                    />
+                    <label htmlFor="haulCheck" className="text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
+                      Aset telah tersimpan mencapai 1 Tahun Hijriyah / Haul Penuh
+                    </label>
+                  </div>
+                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${
+                    goldHasHaul ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-400'
+                  }`}>
+                    {goldHasHaul ? 'Haul Terpenuhi' : 'Belum 1 Tahun'}
+                  </span>
                 </div>
 
-                <div className="text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
-                  Nisab Zakat Maal: <strong>85 Gram Emas (Rp {nisabGold85g.toLocaleString('id-ID')})</strong>. Kadar zakat wajib 2.5%.
+                {/* Gold Nisab Indicator Card */}
+                <div className="p-3 bg-white dark:bg-slate-800/90 rounded-xl border border-slate-200 dark:border-slate-700/60 space-y-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1">
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400">Total Simpanan Emas: </span>
+                      <span className="font-bold font-mono text-slate-900 dark:text-white">
+                        {goldWeightGrams} Gram
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400">Nisab Emas Maal: </span>
+                      <span className="font-mono font-bold text-slate-700 dark:text-slate-300">
+                        85 Gram
+                      </span>
+                      <span className="text-[10px] text-slate-400 ml-1">(Rp {nisabGold85g.toLocaleString('id-ID')})</span>
+                    </div>
+                  </div>
+
+                  {/* Progress Bar towards Gold Nisab */}
+                  <div className="space-y-1">
+                    <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 rounded-full ${
+                          isGoldObligated ? 'bg-amber-500' : 'bg-slate-400'
+                        }`}
+                        style={{ width: `${goldProgressPct}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="font-mono text-slate-500">{goldProgressPct}% dari 85 Gram</span>
+                      {isGoldObligated ? (
+                        <span className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Wajib Zakat Emas 2.5%: Rp {zakatGoldAmount.toLocaleString('id-ID')} ({(goldWeightGrams * 0.025).toFixed(2)} gr)</span>
+                        </span>
+                      ) : !goldHasHaul ? (
+                        <span className="text-amber-600 font-semibold">Belum Wajib Zakat (Syarat Haul 1 tahun belum tercapai)</span>
+                      ) : (
+                        <span className="text-slate-500 font-medium">Kurang {Math.max(0, 85 - goldWeightGrams)} gram lagi untuk mencapai nisab</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </>
+              </div>
             )}
 
+            {/* ---------------- SECTION C: FITRAH (If Fitrah active) ---------------- */}
             {calcType === 'fitrah' && (
-              <>
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
@@ -329,14 +633,15 @@ export const ZakatHub: React.FC<ZakatHubProps> = ({
                     />
                   </div>
                 </div>
-                <div className="text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                <div className="text-[11px] text-slate-500 bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
                   Setara 2.5 kg atau 3.5 liter beras per jiwa sesuai edaran resmi Lazismu dan Majelis Tarjih PP Muhammadiyah.
                 </div>
-              </>
+              </div>
             )}
 
+            {/* ---------------- SECTION D: PERNIAGAAN (If Perniagaan active) ---------------- */}
             {calcType === 'perniagaan' && (
-              <>
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     Nilai Barang Dagangan / Persediaan + Piutang Lancar
@@ -361,41 +666,74 @@ export const ZakatHub: React.FC<ZakatHubProps> = ({
                     className="w-full px-3 py-2 text-sm font-mono font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 dark:text-white"
                   />
                 </div>
-              </>
+              </div>
             )}
+
           </div>
 
-          {/* Calculator Result Box */}
-          <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-1.5 text-xs">
-                {isObligated ? (
-                  <span className="font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    <span>{t.zakat.obligationYes}</span>
-                  </span>
-                ) : (
-                  <span className="font-semibold text-amber-700 dark:text-amber-400">
-                    {t.zakat.obligationNo}
-                  </span>
-                )}
+          {/* ITEMIZATION BREAKDOWN & PROMINENT CALL TO ACTION */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900 text-white shadow-md space-y-4">
+            <div className="flex items-center justify-between border-b border-emerald-800/60 pb-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                <h4 className="font-bold text-xs uppercase tracking-wider text-emerald-300">
+                  Ringkasan & Total Kewajiban Zakat Otomatis
+                </h4>
               </div>
-              <div className="text-xl sm:text-2xl font-bold font-mono text-slate-900 dark:text-white mt-1 tabular-nums">
-                Rp {calculatedZakat.toLocaleString('id-ID')}
-              </div>
+              <span className="text-[10px] font-mono text-slate-300">
+                {isObligated ? 'Status: Wajib Ditunaikan' : 'Status: Belum Wajib Nisab'}
+              </span>
             </div>
 
-            <button
-              onClick={() => onOpenPaymentModal(
-                calcType === 'maal' ? 'Zakat Maal' : calcType === 'profesi' ? 'Zakat Profesi' : calcType === 'fitrah' ? 'Zakat Fitrah' : 'Zakat Maal',
-                calculatedZakat > 0 ? calculatedZakat : 500000
-              )}
-              className="w-full sm:w-auto px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2"
-            >
-              <span>{t.zakat.proceedPayment}</span>
-              <ArrowUpRight className="w-3.5 h-3.5" />
-            </button>
+            {/* Itemized Line Items when in Kombinasi Mode */}
+            {calcType === 'kombinasi' && (
+              <div className="space-y-1.5 text-xs text-slate-300 border-b border-emerald-900/80 pb-3">
+                <div className="flex justify-between items-center">
+                  <span>1. Zakat Profesi (Penghasilan Bersih Bulanan):</span>
+                  <span className="font-mono font-bold text-white">
+                    Rp {zakatProfesiAmount.toLocaleString('id-ID')}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>2. Zakat Emas Murni ({goldWeightGrams} Gram, Haul 1 Th):</span>
+                  <span className="font-mono font-bold text-white">
+                    Rp {zakatGoldAmount.toLocaleString('id-ID')}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Total Display & One-Click Payment CTA */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
+              <div>
+                <div className="text-[11px] text-slate-400">Total Besaran Zakat yang Harus Dikeluarkan:</div>
+                <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-300 tabular-nums mt-0.5">
+                  Rp {calculatedZakat.toLocaleString('id-ID')}
+                </div>
+              </div>
+
+              <button
+                onClick={() => onOpenPaymentModal(
+                  zakatModalTitle,
+                  calculatedZakat > 0 ? calculatedZakat : 500000
+                )}
+                className="px-5 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+              >
+                <Coins className="w-4 h-4 text-slate-950" />
+                <span>Tunaikan Zakat Digital Sekarang</span>
+                <ArrowUpRight className="w-4 h-4 text-slate-950" />
+              </button>
+            </div>
+
+            {/* Tarjih Muhammadiyah Dalil / Source Tag */}
+            <div className="text-[10px] text-slate-400 pt-2 border-t border-emerald-900/60 leading-relaxed flex items-start gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+              <span>
+                Berdasarkan Putusan Tarjih PP Muhammadiyah: Zakat Profesi diqiyaskan pada zakat emas (nisab 85 gr emas/12 bulan, kadar 2.5% dikeluarkan setiap menerima pendapatan). Zakat emas simpanan wajib jika telah mencapai nisab 85 gram dan haul 1 tahun.
+              </span>
+            </div>
           </div>
+
         </div>
 
         {/* Right: Asnaf & Program Distribution Transparency (5 Cols) */}

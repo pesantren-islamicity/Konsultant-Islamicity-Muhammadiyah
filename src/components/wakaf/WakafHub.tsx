@@ -33,6 +33,7 @@ import {
   Language
 } from '../../types';
 import { WaqfDonationModal } from './WaqfDonationModal';
+import { WaqfImpactDashboard } from './WaqfImpactDashboard';
 import { ExportService } from '../../services/exportService';
 
 interface WakafHubProps {
@@ -56,7 +57,7 @@ export const WakafHub: React.FC<WakafHubProps> = ({
   onNavigateTab,
   language
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'tunai' | 'produktif' | 'blockchain' | 'sertifikat'>('tunai');
+  const [activeSubTab, setActiveSubTab] = useState<'tunai' | 'produktif' | 'impact' | 'blockchain' | 'sertifikat'>('tunai');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [selectedProgramForDonation, setSelectedProgramForDonation] = useState<CashWaqfProgram | null>(null);
@@ -238,6 +239,7 @@ export const WakafHub: React.FC<WakafHubProps> = ({
           {[
             { id: 'tunai', label: 'Wakaf Tunai & CWLS', icon: Coins, count: programs.length },
             { id: 'produktif', label: 'Aset Wakaf Produktif', icon: Building2, count: productiveAssets.length },
+            { id: 'impact', label: 'Waqf Impact Dashboard', icon: Activity, count: productiveAssets.length, isSpecial: true },
             { id: 'blockchain', label: 'Transparansi Blockchain', icon: Cpu, count: blockchainTransactions.length },
             { id: 'sertifikat', label: 'Akta Ikrar & Sertifikat Saya', icon: FileCheck, count: pledges.length },
           ].map(tab => {
@@ -259,6 +261,11 @@ export const WakafHub: React.FC<WakafHubProps> = ({
               >
                 <Icon className="w-3.5 h-3.5" />
                 <span>{tab.label}</span>
+                {tab.isSpecial && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold bg-amber-400 text-slate-950">
+                    D3.js
+                  </span>
+                )}
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
                   isActive ? 'bg-emerald-800/80 text-emerald-100' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                 }`}>
@@ -279,6 +286,7 @@ export const WakafHub: React.FC<WakafHubProps> = ({
             placeholder={
               activeSubTab === 'tunai' ? 'Cari program wakaf uang...' :
               activeSubTab === 'produktif' ? 'Cari aset RS PKU, kampus...' :
+              activeSubTab === 'impact' ? 'Eksplorasi visualisasi dampak...' :
               'Cari TxHash, wakif, block...'
             }
             className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
@@ -570,7 +578,17 @@ export const WakafHub: React.FC<WakafHubProps> = ({
         </div>
       )}
 
-      {/* Sub-Tab 3: Transparansi Blockchain Explorer */}
+      {/* Sub-Tab 3: Waqf Impact Dashboard (D3.js) */}
+      {activeSubTab === 'impact' && (
+        <WaqfImpactDashboard
+          productiveAssets={productiveAssets}
+          programs={programs}
+          language={language}
+          onSelectAsset={asset => setSelectedAssetDetail(asset)}
+        />
+      )}
+
+      {/* Sub-Tab 4: Transparansi Blockchain Explorer */}
       {activeSubTab === 'blockchain' && (
         <div className="space-y-6">
           
